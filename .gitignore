@@ -1,6 +1,6 @@
 # Environment files
-.env
-*.env
+
+.env*
 
 # Docker data volumes
 db_data/

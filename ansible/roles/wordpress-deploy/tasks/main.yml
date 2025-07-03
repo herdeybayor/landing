@@ -1,4 +1,22 @@
 ---
+- name: Install Python dependencies for Docker modules
+  apt:
+      name:
+          - python3-pip
+          - python3-requests
+          - python3-docker
+          - python3-yaml
+      state: present
+      update_cache: yes
+
+- name: Install additional Python packages via pip
+  pip:
+      name:
+          - requests
+          - docker
+          - PyYAML
+      state: present
+
 - name: Create project directory
   file:
       path: "{{ project_path }}"
@@ -8,24 +26,41 @@
       mode: "0755"
 
 - name: Create Docker network
-  docker_network:
+  community.docker.docker_network:
       name: web
       state: present
 
-- name: Copy project files
-  synchronize:
-      src: "{{ playbook_dir }}/../"
-      dest: "{{ project_path }}/"
-      delete: yes
-      rsync_opts:
-          - "--exclude=.git"
-          - "--exclude=.github"
-          - "--exclude=ansible"
-          - "--exclude=README.md"
-          - "--exclude=.gitignore"
-          - "--exclude=db_data"
-          - "--exclude=wp_data"
-          - "--exclude=traefik-certificates"
+- name: Copy docker-compose.yml
+  copy:
+      src: "{{ playbook_dir }}/../../docker-compose.yml"
+      dest: "{{ project_path }}/docker-compose.yml"
+      owner: "{{ ansible_user }}"
+      group: "{{ ansible_user }}"
+      mode: "0644"
+
+- name: Copy nginx configuration
+  copy:
+      src: "{{ playbook_dir }}/../../nginx/"
+      dest: "{{ project_path }}/nginx/"
+      owner: "{{ ansible_user }}"
+      group: "{{ ansible_user }}"
+      mode: "0644"
+
+- name: Copy traefik configuration
+  copy:
+      src: "{{ playbook_dir }}/../../traefik/"
+      dest: "{{ project_path }}/traefik/"
+      owner: "{{ ansible_user }}"
+      group: "{{ ansible_user }}"
+      mode: "0644"
+
+- name: Copy uploads.ini
+  copy:
+      src: "{{ playbook_dir }}/../../uploads.ini"
+      dest: "{{ project_path }}/uploads.ini"
+      owner: "{{ ansible_user }}"
+      group: "{{ ansible_user }}"
+      mode: "0644"
 
 - name: Generate .env file from template
   template:
@@ -55,35 +90,36 @@
       group: "{{ ansible_user }}"
 
 - name: Stop existing containers (if any)
-  docker_compose:
+  community.docker.docker_compose_v2:
       project_src: "{{ project_path }}"
       state: absent
   ignore_errors: true
 
 - name: Pull latest Docker images
-  docker_compose:
+  community.docker.docker_compose_v2:
       project_src: "{{ project_path }}"
-      pull: true
+      pull: "always"
 
 - name: Start WordPress stack
-  docker_compose:
+  community.docker.docker_compose_v2:
       project_src: "{{ project_path }}"
       state: present
-      restarted: true
+      recreate: always
 
 - name: Wait for WordPress to be ready
   uri:
-      url: "http://{{ ansible_default_ipv4.address }}/health"
+      url: "http://{{ ansible_default_ipv4.address }}"
       method: GET
-      status_code: 200
+      status_code: [200, 301, 302, 303]
+      follow_redirects: none
   register: health_check
-  until: health_check.status == 200
-  retries: 30
+  until: health_check.status in [200, 301, 302, 303]
+  retries: 15
   delay: 10
   ignore_errors: true
 
 - name: Display container status
-  command: docker-compose ps
+  command: docker compose ps
   args:
       chdir: "{{ project_path }}"
   register: compose_status

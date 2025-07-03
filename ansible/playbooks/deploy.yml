@@ -1,12 +1,14 @@
 ---
 - name: Deploy WordPress Landing Page with Docker and Traefik
-  hosts: wordpress
+  hosts: all
   become: true
   gather_facts: true
 
   vars:
       docker_users:
           - "{{ ansible_user }}"
+      project_path: "/opt/yoursjournaly"
+      docker_compose_version: "2.24.0"
 
   pre_tasks:
       - name: Update apt cache
@@ -28,6 +30,20 @@
                 - gnupg
                 - lsb-release
                 - ufw
+                - python3-pip
+                - python3-requests
+                - python3-docker
+                - python3-yaml
+                - rsync
+            state: present
+        when: ansible_os_family == "Debian"
+
+      - name: Install Python packages for Ansible Docker modules
+        pip:
+            name:
+                - requests
+                - docker
+                - PyYAML
             state: present
         when: ansible_os_family == "Debian"
 
