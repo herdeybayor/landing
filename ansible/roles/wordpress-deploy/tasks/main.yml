@@ -1,0 +1,94 @@
+---
+- name: Create project directory
+  file:
+      path: "{{ project_path }}"
+      state: directory
+      owner: "{{ ansible_user }}"
+      group: "{{ ansible_user }}"
+      mode: "0755"
+
+- name: Create Docker network
+  docker_network:
+      name: web
+      state: present
+
+- name: Copy project files
+  synchronize:
+      src: "{{ playbook_dir }}/../"
+      dest: "{{ project_path }}/"
+      delete: yes
+      rsync_opts:
+          - "--exclude=.git"
+          - "--exclude=.github"
+          - "--exclude=ansible"
+          - "--exclude=README.md"
+          - "--exclude=.gitignore"
+          - "--exclude=db_data"
+          - "--exclude=wp_data"
+          - "--exclude=traefik-certificates"
+
+- name: Generate .env file from template
+  template:
+      src: env.j2
+      dest: "{{ project_path }}/.env"
+      owner: "{{ ansible_user }}"
+      group: "{{ ansible_user }}"
+      mode: "0600"
+
+- name: Create persistent data directories
+  file:
+      path: "{{ project_path }}/{{ item }}"
+      state: directory
+      owner: "{{ ansible_user }}"
+      group: "{{ ansible_user }}"
+      mode: "0755"
+  loop:
+      - db_data
+      - wp_data
+      - traefik-certificates
+
+- name: Set correct permissions for certificate storage
+  file:
+      path: "{{ project_path }}/traefik-certificates"
+      mode: "0600"
+      owner: "{{ ansible_user }}"
+      group: "{{ ansible_user }}"
+
+- name: Stop existing containers (if any)
+  docker_compose:
+      project_src: "{{ project_path }}"
+      state: absent
+  ignore_errors: true
+
+- name: Pull latest Docker images
+  docker_compose:
+      project_src: "{{ project_path }}"
+      pull: true
+
+- name: Start WordPress stack
+  docker_compose:
+      project_src: "{{ project_path }}"
+      state: present
+      restarted: true
+
+- name: Wait for WordPress to be ready
+  uri:
+      url: "http://{{ ansible_default_ipv4.address }}/health"
+      method: GET
+      status_code: 200
+  register: health_check
+  until: health_check.status == 200
+  retries: 30
+  delay: 10
+  ignore_errors: true
+
+- name: Display container status
+  command: docker-compose ps
+  args:
+      chdir: "{{ project_path }}"
+  register: compose_status
+  changed_when: false
+
+- name: Show running containers
+  debug:
+      var: compose_status.stdout_lines

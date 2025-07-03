@@ -1,0 +1,53 @@
+---
+- name: Deploy WordPress Landing Page with Docker and Traefik
+  hosts: wordpress
+  become: true
+  gather_facts: true
+
+  vars:
+      docker_users:
+          - "{{ ansible_user }}"
+
+  pre_tasks:
+      - name: Update apt cache
+        apt:
+            update_cache: yes
+            cache_valid_time: 3600
+        when: ansible_os_family == "Debian"
+
+      - name: Install required packages
+        apt:
+            name:
+                - curl
+                - wget
+                - git
+                - unzip
+                - software-properties-common
+                - apt-transport-https
+                - ca-certificates
+                - gnupg
+                - lsb-release
+                - ufw
+            state: present
+        when: ansible_os_family == "Debian"
+
+  roles:
+      - docker
+      - firewall
+      - wordpress-deploy
+
+  post_tasks:
+      - name: Wait for services to start
+        wait_for:
+            port: 80
+            host: "{{ ansible_default_ipv4.address }}"
+            timeout: 300
+        tags: health_check
+
+      - name: Display deployment information
+        debug:
+            msg:
+                - "WordPress deployment completed successfully!"
+                - "Site URL: https://{{ domain_name }}"
+                - "Traefik Dashboard: https://traefik.{{ domain_name }}"
+                - "Please ensure DNS points to: {{ ansible_default_ipv4.address }}"

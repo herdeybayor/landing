@@ -1,0 +1,40 @@
+http:
+    middlewares:
+        security-headers:
+            headers:
+                accessControlAllowMethods:
+                    - GET
+                    - OPTIONS
+                    - PUT
+                    - POST
+                    - DELETE
+                accessControlMaxAge: 100
+                hostsProxyHeaders:
+                    - "X-Forwarded-Host"
+                referrerPolicy: "same-origin"
+                customRequestHeaders:
+                    X-Forwarded-Proto: "https"
+                customResponseHeaders:
+                    X-Robots-Tag: "noindex,nofollow,nosnippet,noarchive,notranslate,noimageindex"
+                    server: ""
+                frameDeny: true
+                contentTypeNosniff: true
+                browserXssFilter: true
+                forceSTSHeader: true
+                stsIncludeSubdomains: true
+                stsSeconds: 31536000
+                stsPreload: true
+
+        rate-limit:
+            rateLimit:
+                average: 100
+                burst: 200
+                period: 1m
+
+        secure-headers:
+            headers:
+                accessControlAllowOriginList:
+                    - "https://${DOMAIN}"
+                accessControlAllowHeaders:
+                    - "Content-Type"
+                    - "Authorization"

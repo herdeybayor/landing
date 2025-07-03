@@ -1,0 +1,42 @@
+api:
+    dashboard: true
+    insecure: true # Set to false in production
+
+global:
+    checkNewVersion: false
+    sendAnonymousUsage: false
+
+entryPoints:
+    web:
+        address: ":80"
+
+    websecure:
+        address: ":443"
+
+providers:
+    docker:
+        endpoint: "unix:///var/run/docker.sock"
+        exposedByDefault: false
+        network: web
+
+    file:
+        directory: /etc/traefik/dynamic
+        watch: true
+
+certificatesResolvers:
+    letsencrypt:
+        acme:
+            email: ${ACME_EMAIL}
+            storage: /certificates/acme.json
+            httpChallenge:
+                entryPoint: web
+
+log:
+    level: ${TRAEFIK_LOG_LEVEL:-INFO}
+
+accessLog: {}
+
+metrics:
+    prometheus:
+        addEntryPointsLabels: true
+        addServicesLabels: true
